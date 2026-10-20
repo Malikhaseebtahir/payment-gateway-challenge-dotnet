@@ -29,6 +29,13 @@ dotnet run --project src/PaymentGateway.Api      # API + swagger ui at https://l
 dotnet test                                      # no docker needed; the bank is faked in tests
 ```
 
+or run everything in Docker (gateway on :5080, bank simulator on :8080):
+
+```bash
+docker compose up -d --build
+open http://localhost:5080/swagger
+```
+
 ## API
 
 ### `POST /api/payments`
@@ -69,8 +76,19 @@ Models/Payment
 - **Statuses** are serialised as strings (`"Authorized"`), not enum ordinals.
 - **Validation** is a plain class rather than fluentValidation or dataAnnotations. The rules are few and a plain class keeps them obvious and easy to unit test.
 
+## Observability
+
+- **Logs** are structured, with only the last four card digits, a test checks the full card number never reaches the
+  logs. JSON in Docker (`docker logs payment_gateway`), single lines in development.
+- **Correlation id**: every response has an `X-Correlation-Id` header (the caller's own, or the trace id), and it is
+  attached to every log line for that request.
+- **Metrics**: `payments.processed` by outcome and `bank.request.duration`
+  (`dotnet-counters monitor -n PaymentGateway.Api --counters PaymentGateway.Api`).
+- **Health**: `GET /health`. It deliberately does not call the bank, so a bank outage doesn't get the gateway restarted.
+
 ## Testing
 
 - `PaymentRequestValidatorTests`: boundary and negative cases for every field with a fixed clock.
 - `BankClientTests`: wire format to the bank and error mapping using a stub `HttpMessageHandler`.
 - `PaymentsControllerTests`: in-process API tests (`webApplicationFactory`) with a `fakeBankClient` that mirrors the simulator's odd/even/zero rules.
+- `BankSimulatorEndToEndTests`: the real gateway against the real simulator, skipped when the simulator isn't running.
