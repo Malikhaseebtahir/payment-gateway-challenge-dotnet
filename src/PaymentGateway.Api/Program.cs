@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using PaymentGateway.Api.Clients;
 using PaymentGateway.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<PaymentsRepository>();
+builder.Services.AddHttpClient<IBankClient, BankClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["BankSimulator:BaseUrl"]
+                                 ?? throw new InvalidOperationException("BankSimulator:BaseUrl is not configured."));
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("BankSimulator:TimeoutSeconds", 10));
+});
 
 var app = builder.Build();
 
