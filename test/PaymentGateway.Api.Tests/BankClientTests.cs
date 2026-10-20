@@ -1,7 +1,12 @@
 using System.Net;
 using System.Text;
 
+using Microsoft.Extensions.Diagnostics.Metrics.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PaymentGateway.Api.Clients;
+using PaymentGateway.Api.Observability;
+using PaymentGateway.Api.Tests.Fakes;
 
 namespace PaymentGateway.Api.Tests;
 
@@ -20,8 +25,12 @@ public class BankClientTests
         }
     }
 
-    private static BankClient CreateClient(HttpMessageHandler handler) =>
-        new(new HttpClient(handler) { BaseAddress = new Uri("http://bank.test/") });
+    private readonly TestMeterFactory _meterFactory = new();
+
+    private BankClient CreateClient(HttpMessageHandler handler) =>
+        new(new HttpClient(handler) { BaseAddress = new Uri("http://bank.test/") },
+            new PaymentMetrics(_meterFactory),
+            NullLogger<BankClient>.Instance);
 
     [Fact]
     public async Task SendsSnakeCaseRequestAndParsesResponse()
@@ -57,5 +66,18 @@ public class BankClientTests
 
         await Assert.ThrowsAsync<BankUnavailableException>(
             () => CreateClient(handler).ProcessPaymentAsync(Request, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RecordsBankDurationMetric()
+    {
+        using var collector = new MetricCollector<double>(_meterFactory, PaymentMetrics.MeterName, "bank.request.duration");
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+
+        await Assert.ThrowsAsync<BankUnavailableException>(
+            () => CreateClient(handler).ProcessPaymentAsync(Request, CancellationToken.None));
+
+        var measurement = Assert.Single(collector.GetMeasurementSnapshot());
+        Assert.Equal(false, measurement.Tags["succeeded"]);
     }
 }

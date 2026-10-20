@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using PaymentGateway.Api.Clients;
+using PaymentGateway.Api.Observability;
 using PaymentGateway.Api.Services;
 using PaymentGateway.Api.Validation;
 
@@ -17,6 +18,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<PaymentMetrics>();
 builder.Services.AddSingleton<PaymentRequestValidator>();
 builder.Services.AddSingleton<PaymentsRepository>();
 builder.Services.AddHttpClient<IBankClient, BankClient>(client =>
@@ -27,6 +29,8 @@ builder.Services.AddHttpClient<IBankClient, BankClient>(client =>
 });
 
 var app = builder.Build();
+
+app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
