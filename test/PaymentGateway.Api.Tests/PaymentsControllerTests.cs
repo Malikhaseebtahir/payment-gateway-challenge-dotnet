@@ -272,4 +272,13 @@ public class PaymentsControllerTests
         var outcomes = collector.GetMeasurementSnapshot().Select(m => m.Tags["outcome"]).ToList();
         Assert.Equal(new object?[] { "Authorized", "Declined", "BankUnavailable", "Rejected" }, outcomes);
     }
+
+    [Fact]
+    public async Task HealthEndpointReportsHealthy()
+    {
+        var response = await _client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
+    }
 }
